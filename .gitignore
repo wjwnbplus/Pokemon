@@ -1,0 +1,33 @@
+# Unreal Engine
+Saved/
+Intermediate/
+DerivedDataCache/
+Content/
+Build/
+Binaries/
+.vs/
+.vscode/
+.idea/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.db-shm
+*.VC.db-wal
+*.xcodeproj
+*.xcworkspace
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Rider
+.idea/
+*.iml
+*.rider
