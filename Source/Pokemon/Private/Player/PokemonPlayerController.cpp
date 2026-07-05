@@ -8,6 +8,8 @@
 #include "Engine/LocalPlayer.h"
 #include "InputMappingContext.h"
 #include "Public/Character/Pokemon_Trainer.h"
+#include "Battle/BattleManager.h"
+#include "Character/Pokemon_BattleNPC.h"
 
 void APokemonPlayerController::BeginPlay()
 {
@@ -76,7 +78,27 @@ void APokemonPlayerController::OnInteract()
 	APokemon_BattleNPC* NPC = Trainer->GetOverlappingNPC();
 	if (!NPC) return;
 
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("开始战斗！"));
+	// 检查双方是否有宝可梦
+	if (NPC->GetPokemonParty().Num() == 0)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, TEXT("This trainer has no Pokemon!"));
+		return;
+	}
+
+	if (Trainer->GetPokemonParty().Num() == 0)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, TEXT("You have no Pokemon!"));
+		return;
+	}
+
+	// 生成对战管理器
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ABattleManager* BattleManager = GetWorld()->SpawnActor<ABattleManager>(ABattleManager::StaticClass(), SpawnParams);
+	if (BattleManager)
+	{
+		BattleManager->StartBattle(Trainer, NPC);
+	}
 }
 
 void APokemonPlayerController::OnMove(const FInputActionValue& Value)
