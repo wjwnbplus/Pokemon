@@ -1,0 +1,11 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Unreal Engine 5.6, C++, Gameplay Ability System (GAS), StateTree, EnhancedInput
+  Project: Pokemon-themed UE5 game
+  Code style: UE5 C++ conventions, UCLASS/UINTERFACE/USTRUCT macros, GENERATED_BODY()
+  Core modules: Pokemon (main module with GAS attributes, trainer/character system)
+  Architecture: Core framework (Public/ + Private/) with Pokemon entity, trainers, GAS attribute set
+  Key classes: APokemon_Pokemon (GAS entity), APokemon_Trainer (player), APokemon_BaseCharacter (base), UPokemon_AttributeSet (7 attributes)
+  Build: Pokemon.Build.cs with Core, EnhancedInput, GameplayAbilities, StateTreeModule, AIModule, UMG
+  Git: Code-only tracking, Content/ assets ignored via .gitignore
