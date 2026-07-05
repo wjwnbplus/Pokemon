@@ -1,65 +1,83 @@
-# Change: Turn-Based Battle System
+# Change: Turn-Based Battle System (Plan C)
 
 ## Summary
-Implement a classic Pokemon turn-based battle system. This is the core gameplay feature that transforms the project from an overworld exploration prototype into a functional Pokemon battle game.
+Implement a classic Pokemon turn-based battle system using the **Plan C** architecture:
+- `UPokemon_Move` (UDataAsset) — pure data for skills
+- `ABattleManager` (Actor) — turn flow and move execution
+- `UGameplayEffect` + `UPokemonDamageExecution` — damage calculation via GAS
+- No GameplayAbility used
+
+## Architecture Overview
+
+```
+UPokemon_Move (DataAsset)        ABattleManager (Actor)
+├── Power, Type, Category        ├── StartBattle()
+├── Accuracy, PP, Priority       ├── ExecuteMove()
+└── CanUse() / RestorePP()       ├── HandleFaint()
+        │                        └── EndBattle()
+        │                              │
+        ▼                              │
+BattleManager::ExecuteMove()           │
+├── Accuracy check                    │
+├── PP consumption                    │
+├── Create GE (runtime)               │
+│   ├── Bind ExecutionCalculation     │
+│   └── SetByCaller: Power/Type/Cat   │
+├── ApplyGEToTarget                   │
+│   └── ExecutionCalc::Execute()      │
+│       ├── Read SetByCaller          │
+│       ├── Read AttributeSet         │
+│       ├── Damage formula            │
+│       ├── STAB + Type effectiveness │
+│       └── Output: Health -= Damage  │
+└── Check faint                       │
+```
 
 ## Affected Specs
-- `battle-core` — New spec (battle flow, damage formula, turn logic)
-- `pokemon-moves` — New spec (move data, PP, accuracy)
-- `type-system` — New spec (type enum, effectiveness chart, STAB)
-- `battle-ui` — New spec (battle HUD layout, menus, messages)
+- `battle-core` — Battle flow, damage formula, turn logic (rewritten for Plan C)
+- `pokemon-moves` — Move data assets (rewritten, no GA)
+- `type-system` — Type enum, effectiveness chart, STAB (updated)
+- `battle-ui` — Battle HUD layout (updated)
 
 ## Implementation Phases
 
-### Phase 1: Foundation (Type System + Move System)
-1. Create `EPokemonType` enum in a new header `Pokemon_Types.h`
-2. Implement `GetTypeEffectiveness()` function with full type chart
-3. Create `EMoveCategory` enum
-4. Create `UPokemon_Move` data asset class
-5. Add `Type1`, `Type2`, `MoveSet` to `APokemon_Pokemon`
-6. Create initial move data assets (Tackle, Ember, Water Gun, etc.)
+### Phase 1: Data Layer (Type System + Move Data)
+1. Create `EPokemonType` enum + `GetTypeEffectiveness()` + `GetSTABMultiplier()`
+2. Create `EMoveCategory` enum
+3. Create `UPokemon_Move` UDataAsset class
+4. Add `Type1`, `Type2`, `MoveSet`, `PokemonName` to `APokemon_Pokemon`
+5. Create 6 initial move data assets (Tackle, Ember, Water Gun, etc.)
 
 ### Phase 2: Battle Core
 1. Create `EBattlePhase` enum
-2. Create `ABattleManager` actor class
-3. Implement `StartBattle()` — spawn manager, set references
-4. Implement turn flow: PlayerAction → NPCAction → Resolve
-5. Implement damage calculation formula
-6. Implement accuracy check
-7. Implement priority system
-8. Implement faint detection and switch logic
-9. Implement battle end conditions
-10. Wire `APokemonPlayerController::OnInteract()` to start battle
+2. Create `ABattleManager` actor (turn flow, move execution, faint handling)
+3. Create `UPokemonDamageExecution` (damage formula with type chart + STAB)
+4. Wire `APokemonPlayerController::OnInteract()` to spawn BattleManager
+5. Implement NPC AI (random move selection, auto-switch on faint)
 
-### Phase 3: NPC AI
-1. Implement NPC move selection (random from available moves)
-2. Implement NPC switch logic (auto-send next Pokemon on faint)
-
-### Phase 4: Battle UI
-1. Create `UBattleHUDWidget` base class in C++
-2. Create Widget Blueprint with layout (HP bars, sprites, menus)
-3. Implement menu navigation (Fight → Move selection → Execute)
-4. Implement HP bar animation
-5. Implement message box with progression
-6. Implement victory/defeat screens
+### Phase 3: Battle UI
+1. Create `UBattleHUDWidget` C++ base class
+2. Create Widget Blueprint (HP bars, menus, messages)
+3. Wire UI to BattleManager callbacks
 
 ## Dependencies
 - Phase 1 has no dependencies
 - Phase 2 depends on Phase 1 (needs types + moves)
-- Phase 3 depends on Phase 2 (needs battle manager)
-- Phase 4 depends on Phase 2 (needs battle state to display)
+- Phase 3 depends on Phase 2 (needs BattleManager for callbacks)
 
-## Estimated Effort
-- Phase 1: ~200 lines C++
-- Phase 2: ~500 lines C++
-- Phase 3: ~100 lines C++
-- Phase 4: ~300 lines C++ + Widget Blueprint work
-- Total: ~1100 lines C++ + UI Blueprints
+## GAS Components Used
+
+| Component | Used? | Reason |
+|-----------|-------|--------|
+| AttributeSet | ✅ | Store HP + 6 stats |
+| GameplayEffect (Instant) | ✅ | Damage application carrier |
+| ExecutionCalculation | ✅ | Pokemon damage formula |
+| GameplayTag | ✅ | Type/status/effect tags |
+| GameplayCue | ✅ Optional | Hit effects (deferred) |
+| GameplayAbility | ❌ | Not needed for turn-based |
 
 ## Open Questions
-1. Should we implement status conditions (burn, freeze, paralysis, sleep, poison) in this change or defer to a future change?
-   → Defer to future change. This change focuses on core battle flow only.
-2. Should we implement held items in this change?
-   → No, defer to future change.
-3. Should wild Pokemon encounters be implemented alongside trainer battles?
-   → No, trainer battles only. Wild encounters deferred.
+1. Status conditions (burn, freeze, etc.) — deferred to future change
+2. Held items — deferred to future change
+3. Wild Pokemon encounters — deferred to future change
+4. GA extension point — `UPokemon_Move` can optionally reference a GA class for complex moves (not implemented now)

@@ -1,144 +1,168 @@
 # type-system Specification
 
 ## Purpose
-Define Pokemon types, type effectiveness chart, and Same-Type Attack Bonus (STAB) mechanics.
+Define Pokemon types, type effectiveness chart, and STAB (Same-Type Attack Bonus). Used by `UPokemonDamageExecution` during damage calculation. Pure data/function, no GAS dependency.
+
+## Architecture
+
+```
+EPokemonType enum
+        │
+        ▼
+GetTypeEffectiveness(MoveType, DefenderType1, DefenderType2) → float (0.0 ~ 4.0)
+        │
+        ▼
+UPokemonDamageExecution::Execute() — applies the multiplier
+```
 
 ## Requirements
 
 ### Requirement: Pokemon types
-Each Pokemon SHALL have one or two types defined by the `EPokemonType` enum.
+Each Pokemon SHALL have one or two types stored as `EPokemonType Type1` and `EPokemonType Type2` on `APokemon_Pokemon`.
 
-#### Scenario: Single-type Pokemon
-- GIVEN a Pokemon has only one type
-- THEN Type1 is set and Type2 is None
+#### Scenario: Single-type
+- `Type1 = Fire`, `Type2 = None`
 
-#### Scenario: Dual-type Pokemon
-- GIVEN a Pokemon has two types
-- THEN both Type1 and Type2 are set to valid types
+#### Scenario: Dual-type
+- `Type1 = Water`, `Type2 = Ground`
 
 ### Requirement: Type effectiveness
-The system SHALL calculate type effectiveness multipliers based on the classic Pokemon type chart.
+`GetTypeEffectiveness(MoveType, DefenderType1, DefenderType2)` returns a multiplier:
+- 0.0 = No effect
+- 0.25 = Double resisted
+- 0.5 = Not very effective
+- 1.0 = Normal
+- 2.0 = Super effective
+- 4.0 = Double super effective
 
 #### Scenario: Super effective
-- GIVEN a move's type is strong against the defender's type
-- THEN apply a 2x multiplier
-- WHEN both of the defender's types are weak to the move
-- THEN apply a 4x multiplier (2x × 2x)
+- Fire vs Grass → 2.0x
+- Ice vs Dragon/Ground → 2.0 × 2.0 = 4.0x
 
 #### Scenario: Not very effective
-- GIVEN a move's type is weak against the defender's type
-- THEN apply a 0.5x multiplier
-- WHEN both of the defender's types resist the move
-- THEN apply a 0.25x multiplier (0.5x × 0.5x)
+- Fire vs Water → 0.5x
+- Fire vs Water/Rock → 0.5 × 0.5 = 0.25x
 
 #### Scenario: No effect
-- GIVEN a move's type has no effect on the defender's type
-- THEN apply a 0x multiplier
-- AND the move deals no damage
+- Normal vs Ghost → 0.0x
 
-### Requirement: STAB (Same-Type Attack Bonus)
-The system SHALL apply a 1.5x damage multiplier when the move's type matches either of the attacker's types.
+### Requirement: STAB
+If `MoveType` matches `AttackerType1` or `AttackerType2`, apply 1.5x multiplier.
 
-#### Scenario: STAB applied
-- GIVEN a Fire-type Pokemon uses a Fire-type move
-- THEN apply 1.5x STAB multiplier
+#### Scenario: STAB applies
+- Fire Pokemon uses Fire move → 1.5x
 
 #### Scenario: No STAB
-- GIVEN a Fire-type Pokemon uses a Water-type move
-- THEN do NOT apply STAB multiplier
+- Fire Pokemon uses Water move → no STAB
 
-### Requirement: Type enum
-The system SHALL define the following `EPokemonType` enum:
-
-| Type | Enum Value |
-|---|---|
-| None | 0 |
-| Normal | 1 |
-| Fire | 2 |
-| Water | 3 |
-| Electric | 4 |
-| Grass | 5 |
-| Ice | 6 |
-| Fighting | 7 |
-| Poison | 8 |
-| Ground | 9 |
-| Flying | 10 |
-| Psychic | 11 |
-| Bug | 12 |
-| Rock | 13 |
-| Ghost | 14 |
-| Dragon | 15 |
-| Dark | 16 |
-| Steel | 17 |
-| Fairy | 18 |
-
-## Technical Design
-
-### New enum
+### Requirement: EPokemonType enum
 
 ```cpp
 UENUM(BlueprintType)
 enum class EPokemonType : uint8
 {
-    None     UMETA(DisplayName = "None"),
-    Normal   UMETA(DisplayName = "Normal"),
-    Fire     UMETA(DisplayName = "Fire"),
-    Water    UMETA(DisplayName = "Water"),
-    Electric UMETA(DisplayName = "Electric"),
-    Grass    UMETA(DisplayName = "Grass"),
-    Ice      UMETA(DisplayName = "Ice"),
-    Fighting UMETA(DisplayName = "Fighting"),
-    Poison   UMETA(DisplayName = "Poison"),
-    Ground   UMETA(DisplayName = "Ground"),
-    Flying   UMETA(DisplayName = "Flying"),
-    Psychic  UMETA(DisplayName = "Psychic"),
-    Bug      UMETA(DisplayName = "Bug"),
-    Rock     UMETA(DisplayName = "Rock"),
-    Ghost    UMETA(DisplayName = "Ghost"),
-    Dragon   UMETA(DisplayName = "Dragon"),
-    Dark     UMETA(DisplayName = "Dark"),
-    Steel    UMETA(DisplayName = "Steel"),
-    Fairy    UMETA(DisplayName = "Fairy"),
+    None     = 0,
+    Normal   = 1,
+    Fire     = 2,
+    Water    = 3,
+    Electric = 4,
+    Grass    = 5,
+    Ice      = 6,
+    Fighting = 7,
+    Poison   = 8,
+    Ground   = 9,
+    Flying   = 10,
+    Psychic  = 11,
+    Bug      = 12,
+    Rock     = 13,
+    Ghost    = 14,
+    Dragon   = 15,
+    Dark     = 16,
+    Steel    = 17,
+    Fairy    = 18,
 };
 ```
 
-### Type effectiveness table
+## Technical Design
+
+### File: Pokemon_Types.h
 
 ```cpp
-// Returns multiplier: 0.0, 0.25, 0.5, 1.0, 2.0, 4.0
+#pragma once
+#include "CoreMinimal.h"
+#include "Pokemon_Types.generated.h"
+
+UENUM(BlueprintType)
+enum class EPokemonType : uint8 { ... };
+
+// Returns effectiveness multiplier: 0.0, 0.25, 0.5, 1.0, 2.0, or 4.0
 float GetTypeEffectiveness(EPokemonType MoveType, EPokemonType DefenderType1, EPokemonType DefenderType2);
+
+// STAB check
+float GetSTABMultiplier(EPokemonType MoveType, EPokemonType AttackerType1, EPokemonType AttackerType2);
 ```
 
-The function SHALL implement the classic type chart. Key entries:
+### Implementation approach
 
-| Move Type → Defender | Super Effective (2x) | Not Effective (0.5x) | No Effect (0x) |
+The type chart is a static 2D array indexed by `EPokemonType`. Each entry is a float (0.0, 0.5, 1.0, or 2.0). The function multiplies effectiveness against both defender types.
+
+```cpp
+float GetTypeEffectiveness(EPokemonType Move, EPokemonType Def1, EPokemonType Def2)
+{
+    static const float Chart[19][19] = { /* full type chart */ };
+    float Multiplier = 1.0f;
+    if (Def1 != EPokemonType::None) Multiplier *= Chart[(int32)Move][(int32)Def1];
+    if (Def2 != EPokemonType::None) Multiplier *= Chart[(int32)Move][(int32)Def2];
+    return Multiplier;
+}
+```
+
+### Integration with ExecutionCalculation
+
+```cpp
+void UPokemonDamageExecution::Execute_Implementation(...)
+{
+    // ... read attributes and SetByCaller values ...
+
+    float Dmg = ((2.0f * 50 / 5.0f + 2.0f) * Power * Atk / Def / 50.0f + 2.0f);
+
+    // STAB
+    Dmg *= GetSTABMultiplier(MoveType, AttackerType1, AttackerType2);
+
+    // Type effectiveness
+    Dmg *= GetTypeEffectiveness(MoveType, DefenderType1, DefenderType2);
+
+    // Random
+    Dmg *= FMath::FRandRange(0.85f, 1.0f);
+
+    OutOutput.AddOutputModifier(FGameplayModifierEvaluatedData(
+        TargetHealthAttr, EGameplayModOp::Add, -Dmg));
+}
+```
+
+### Integration with APokemon_Pokemon
+
+```cpp
+// Added to APokemon_Pokemon:
+UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pokemon|Type")
+EPokemonType Type1 = EPokemonType::None;
+
+UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pokemon|Type")
+EPokemonType Type2 = EPokemonType::None;
+```
+
+## Type chart reference
+
+Full chart in `Pokemon_Types.cpp`. Key highlights:
+
+| Attack→Defense | 2x (Super Effective) | 0.5x (Not Effective) | 0x (No Effect) |
 |---|---|---|---|
-| Normal | — | Rock, Steel | Ghost |
 | Fire | Grass, Ice, Bug, Steel | Fire, Water, Rock, Dragon | — |
 | Water | Fire, Ground, Rock | Water, Grass, Dragon | — |
 | Electric | Water, Flying | Electric, Grass, Dragon | Ground |
 | Grass | Water, Ground, Rock | Fire, Grass, Poison, Flying, Bug, Dragon, Steel | — |
-| Ice | Grass, Ground, Flying, Dragon | Fire, Water, Ice, Steel | — |
-| Fighting | Normal, Ice, Rock, Dark, Steel | Poison, Flying, Psychic, Bug, Fairy | Ghost |
-| Poison | Grass, Fairy | Poison, Ground, Rock, Ghost | Steel |
+| Normal | — | Rock, Steel | Ghost |
 | Ground | Fire, Electric, Poison, Rock, Steel | Grass, Bug | Flying |
-| Flying | Grass, Fighting, Bug | Electric, Rock, Steel | — |
-| Psychic | Fighting, Poison | Psychic, Steel | Dark |
-| Bug | Grass, Psychic, Dark | Fire, Fighting, Poison, Flying, Ghost, Steel, Fairy | — |
-| Rock | Fire, Ice, Flying, Bug | Fighting, Ground, Steel | — |
-| Ghost | Psychic, Ghost | Dark | Normal |
 | Dragon | Dragon | Steel | Fairy |
-| Dark | Psychic, Ghost | Fighting, Dark, Fairy | — |
-| Steel | Ice, Rock, Fairy | Fire, Water, Electric, Steel | — |
+| Ghost | Psychic, Ghost | Dark | Normal |
 | Fairy | Fighting, Dragon, Dark | Fire, Poison, Steel | — |
-
-### Integration with APokemon_Pokemon
-
-Add to `APokemon_Pokemon`:
-```cpp
-UPROPERTY(EditAnywhere, Category = "Pokemon|Type")
-EPokemonType Type1;
-
-UPROPERTY(EditAnywhere, Category = "Pokemon|Type")
-EPokemonType Type2;
-```

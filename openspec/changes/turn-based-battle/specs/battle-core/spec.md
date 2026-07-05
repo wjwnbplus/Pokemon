@@ -1,10 +1,9 @@
-### New spec: battle-core
+### Updated spec: battle-core (Plan C)
 
-The system SHALL now have a complete turn-based battle system with:
+Architecture changed: no GameplayAbility used.
 
-+ `ABattleManager` actor to manage battle state and flow
-+ Turn-based execution ordered by Speed (with priority support)
-+ Classic Pokemon damage formula: `((2 * Level / 5 + 2) * Power * A/D / 50 + 2) * Modifier`
-+ Player actions: Fight, Switch, Run
-+ NPC AI: random move selection, auto-switch on faint
-+ Battle end conditions: all Pokemon fainted on either side
++ `ABattleManager` controls turn flow synchronously
++ `UGameplayEffect` (runtime Instant) carries damage parameters via SetByCaller
++ `UPokemonDamageExecution` calculates damage using attributes + type chart + STAB
++ `EBattlePhase` state machine: Init → PlayerAction → NPCAction → Resolve → Victory/Defeat
++ Move execution: accuracy → PP → create GE → apply → check faint
